@@ -63,7 +63,7 @@ function convertRippleEpochToDate(epoch)
 {
     var d = new Date(0);
     d.setUTCSeconds(epoch + 946684800);
-    return d.toString();
+    return d.toISOString();
 }
 
 async function getAccountTransactions(client, marker, min, max) {
@@ -117,7 +117,7 @@ async function getAccountTransactions(client, marker, min, max) {
                     //non-standard, convert from hex
                     currency = xrpl.convertHexToString(transactions[i].tx.TakerPays.currency)
                 }
-                offer_create_msg = 'selling ' + transactions[i].tx.TakerPays.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerGets) / 1000000).toFixed(2) + ' XRP'
+                offer_create_msg = 'buying ' + transactions[i].tx.TakerPays.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerGets) / 1000000).toFixed(2) + ' XRP'
             }
         } else {
             if(typeof transactions[i].tx.Amount == 'object')
