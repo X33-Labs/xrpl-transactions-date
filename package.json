@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "csv-writer": "^1.6.0",
+    "fs": "^0.0.1-security",
+    "sqlite3": "^5.0.2",
+    "xrpl": "^2.1.1"
+  }
+}
