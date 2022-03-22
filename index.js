@@ -6,8 +6,8 @@ var xrpl = require("xrpl");
 //************CHANGE THESE VARIABLES ***************
 var publicServer = "wss://s1.ripple.com/" //RPC server
 var startDate = '2022-01-01' //Starting Date YYYY-MM-DD
-var endDate = '2022-01-06' //Ending Date YYYY-MM-DD (Leave Blank if you want to search up to the latest ledger)
-var account = ''
+var endDate = '' //Ending Date YYYY-MM-DD (Leave Blank if you want to search up to the latest ledger)
+var account = 'rDbqyF67f2wy99QG3WTp2pEWdAL5VRxazR'
 var throttle = 0.5
 //************CHANGE THESE VARIABLES ***************
 
@@ -23,7 +23,8 @@ const csvWriter = createCsvWriter({
       { id: "currency_issuer", title: "currency_issuer" },
       { id: "amount", title: "amount" },
       { id: "tx_hash", title: "tx_hash" },
-      { id: "offer_create_msg", title: "offer_create_msg" }
+      { id: "offer_create_msg", title: "offer_create_msg" },
+      { id: "fulfilled", title: "fulfilled" }
     ],
   });
 
@@ -66,6 +67,44 @@ function convertRippleEpochToDate(epoch)
     return d.toISOString();
 }
 
+function hasBeenFulfilled(affectedNodes, type)
+{
+    let fulfilled = 'false';
+
+    for(let i = 0; i<affectedNodes.length;i++)
+    {
+        try{
+
+            if(affectedNodes[i].ModifiedNode.FinalFields.Account != undefined)
+            {
+                if(affectedNodes[i].ModifiedNode.FinalFields.Account != account)
+                {
+                    if(type == 'sell')
+                    {
+                        if(affectedNodes[i].ModifiedNode.FinalFields.TakerPays != undefined)
+                        {
+                            if(typeof affectedNodes[i].ModifiedNode.FinalFields.TakerPays == 'object')
+                            {
+                                fulfilled = 'true';
+                            }
+                        }
+                    } else{
+                        if(affectedNodes[i].ModifiedNode.FinalFields.TakerGets != undefined)
+                        {
+                            if(typeof affectedNodes[i].ModifiedNode.FinalFields.TakerGets == 'object')
+                            {
+                                fulfilled = 'true';
+                            }
+                        }
+                    }
+                }
+            }
+        } catch(err){}
+    }
+    return fulfilled;
+
+}
+
 async function getAccountTransactions(client, marker, min, max) {
     const request = transactionPayload
     if (marker != undefined) {
@@ -80,12 +119,12 @@ async function getAccountTransactions(client, marker, min, max) {
   function ProcessTransactions(transactions) {
     for (let i = 0; i < transactions.length; i++) {
         try{
-
         let direction = '';
         let currency = '';
         let amount = 0;
         let offer_create_msg = '';
         let currency_issuer = '';
+        let fulfilled = '';
         if(transactions[i].tx.Account == account)
         {
             direction = 'sent';
@@ -106,7 +145,12 @@ async function getAccountTransactions(client, marker, min, max) {
                     //non-standard, convert from hex
                     currency = xrpl.convertHexToString(transactions[i].tx.TakerGets.currency)
                 }
+                fulfilled = hasBeenFulfilled(transactions[i].meta.AffectedNodes, 'sell')
                 offer_create_msg = 'selling ' + transactions[i].tx.TakerGets.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerPays) / 1000000).toFixed(2) + ' XRP'
+                if(fulfilled === 'true')
+                {
+                    amount = parseFloat((transactions[i].tx.TakerPays) / 1000000).toFixed(2);
+                }
             } else {
                 currency_issuer = transactions[i].tx.TakerPays.issuer;
                 if(transactions[i].tx.TakerPays.currency.length === 3)
@@ -117,7 +161,12 @@ async function getAccountTransactions(client, marker, min, max) {
                     //non-standard, convert from hex
                     currency = xrpl.convertHexToString(transactions[i].tx.TakerPays.currency)
                 }
+                fulfilled = hasBeenFulfilled(transactions[i].meta.AffectedNodes, 'buy')
                 offer_create_msg = 'buying ' + transactions[i].tx.TakerPays.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerGets) / 1000000).toFixed(2) + ' XRP'
+                if(fulfilled === 'true')
+                {
+                    amount = transactions[i].tx.TakerPays.value;
+                }
             }
         } else {
             if(typeof transactions[i].tx.Amount == 'object')
@@ -150,7 +199,8 @@ async function getAccountTransactions(client, marker, min, max) {
                     currency_issuer: currency_issuer,
                     amount: amount.toString(),
                     tx_hash: transactions[i].tx.hash,
-                    offer_create_msg: offer_create_msg
+                    offer_create_msg: offer_create_msg,
+                    fulfilled: fulfilled
                 }
             );
         } catch(err)
