@@ -7,7 +7,7 @@ var xrpl = require("xrpl");
 var publicServer = "wss://s1.ripple.com/" //RPC server
 var startDate = '2022-01-01' //Starting Date YYYY-MM-DD
 var endDate = '' //Ending Date YYYY-MM-DD (Leave Blank if you want to search up to the latest ledger)
-var account = 'rDbqyF67f2wy99QG3WTp2pEWdAL5VRxazR'
+var account = ''
 var throttle = 0.5
 //************CHANGE THESE VARIABLES ***************
 
