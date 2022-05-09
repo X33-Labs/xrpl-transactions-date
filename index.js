@@ -1,13 +1,14 @@
 const Storage = require("./storage.js");
 const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
+const { parseBalanceChanges } = require("ripple-lib-transactionparser");
 var xrpl = require("xrpl");
 
 //************CHANGE THESE VARIABLES ***************
 var publicServer = "wss://s1.ripple.com/" //RPC server
 var startDate = '2022-01-01' //Starting Date YYYY-MM-DD
 var endDate = '' //Ending Date YYYY-MM-DD (Leave Blank if you want to search up to the latest ledger)
-var account = ''
+var account = 'rDbqyF67f2wy99QG3WTp2pEWdAL5VRxazR'
 var throttle = 0.5
 //************CHANGE THESE VARIABLES ***************
 
@@ -67,42 +68,37 @@ function convertRippleEpochToDate(epoch)
     return d.toISOString();
 }
 
-function hasBeenFulfilled(affectedNodes, type)
+function hasBeenFulfilled(tx, meta)
 {
-    let fulfilled = 'false';
+    let fulfilled = '';
+    let direction = "other";
+    if (tx.Account === account) direction = "sent";
+    if (tx.Destination === account) direction = "received";
+    if (direction == "other" || direction == "sent") {
+        const balanceChanges = parseBalanceChanges(meta);
 
-    for(let i = 0; i<affectedNodes.length;i++)
-    {
-        try{
-
-            if(affectedNodes[i].ModifiedNode.FinalFields.Account != undefined)
-            {
-                if(affectedNodes[i].ModifiedNode.FinalFields.Account != account)
-                {
-                    if(type == 'sell')
-                    {
-                        if(affectedNodes[i].ModifiedNode.FinalFields.TakerPays != undefined)
-                        {
-                            if(typeof affectedNodes[i].ModifiedNode.FinalFields.TakerPays == 'object')
-                            {
-                                fulfilled = 'true';
-                            }
-                        }
-                    } else{
-                        if(affectedNodes[i].ModifiedNode.FinalFields.TakerGets != undefined)
-                        {
-                            if(typeof affectedNodes[i].ModifiedNode.FinalFields.TakerGets == 'object')
-                            {
-                                fulfilled = 'true';
-                            }
-                        }
-                    }
-                }
-            }
-        } catch(err){}
+        if (Object.keys(balanceChanges).indexOf(account) > -1) {
+            const mutations = balanceChanges[account];
+            mutations.forEach((mutation) => {
+    
+                const isFee =
+                direction === "sent" &&
+                Number(mutation.value) * -1 * 1000000 === Number(tx?.Fee)
+                  ? 1
+                  : 0;
+    
+                  if(isFee == 0)
+                  {
+                      console.log('fulfilled')
+                    fulfilled = true;
+                    return fulfilled;
+                  }
+    
+            })
+        }
     }
-    return fulfilled;
 
+        return fulfilled;
 }
 
 async function getAccountTransactions(client, marker, min, max) {
@@ -145,7 +141,7 @@ async function getAccountTransactions(client, marker, min, max) {
                     //non-standard, convert from hex
                     currency = xrpl.convertHexToString(transactions[i].tx.TakerGets.currency)
                 }
-                fulfilled = hasBeenFulfilled(transactions[i].meta.AffectedNodes, 'sell')
+                fulfilled = hasBeenFulfilled(transactions[i].tx, transactions[i].meta)
                 offer_create_msg = 'selling ' + transactions[i].tx.TakerGets.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerPays) / 1000000).toFixed(2) + ' XRP'
                 if(fulfilled === 'true')
                 {
@@ -161,7 +157,7 @@ async function getAccountTransactions(client, marker, min, max) {
                     //non-standard, convert from hex
                     currency = xrpl.convertHexToString(transactions[i].tx.TakerPays.currency)
                 }
-                fulfilled = hasBeenFulfilled(transactions[i].meta.AffectedNodes, 'buy')
+                fulfilled = hasBeenFulfilled(transactions[i].tx, transactions[i].meta)
                 offer_create_msg = 'buying ' + transactions[i].tx.TakerPays.value + ' ' + currency + ' for ' + parseFloat((transactions[i].tx.TakerGets) / 1000000).toFixed(2) + ' XRP'
                 if(fulfilled === 'true')
                 {

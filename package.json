@@ -2,6 +2,7 @@
   "dependencies": {
     "csv-writer": "^1.6.0",
     "fs": "^0.0.1-security",
+    "ripple-lib-transactionparser": "^0.8.2",
     "sqlite3": "^5.0.2",
     "xrpl": "^2.1.1"
   }
